@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QuizPay - Secure Quiz Platform</title>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <style>
+        .clay-card {
+            background: rgba(255, 255, 255, 0, 0.7);
+            border-radius: 20px;
+            box-shadow: 
+                8px 8px 16px rgba(0, 0, 0, 0.1),
+                -8px -8px 16px rgba(255, 255, 255, 0.8);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            backdrop-filter: blur(10px);
+        }
+        .clay-button {
+            background: #e0e5ec;
+            border-radius: 12px;
+            box-shadow: 
+                5px 5px 10px rgba(0, 0, 0, 0.1),
+                -5px -5px 10px rgba(255, 255, 255, 0.8);
+            transition: all 0.2s ease;
+        }
+        .clay-button:active {
+            box-shadow: inset 
+                3px 3px 6px rgba(0, 0, 0, 0.1),
+                inset -3px -3px 6px rgba(255, 255, 255, 0.8);
+        }
+        body {
+            background: #e0e5ec;
+            font-family: 'Poppins', sans-serif;
+        }
+        .option-button {
+            transition: transform 0.3s ease;
+        }
+        .option-button:hover {
+            transform: scale(1.02);
+        }
+        #cameraFeed {
+            border-radius: 20px;
+            overflow: hidden;
+        }
+    </style>
+</head>
+<body class="min-h-screen p-4">
+    <div id="mainContainer" class="max-w-md mx-auto">
+        <!-- Payment Section -->
+        <div id="paymentSection" class="clay-card p-6 mb-6">
+            <h2 class="text-2xl font-bold mb-4 text-gray-800">Quiz Registration</h2>
+            <p class="mb-4 text-gray-600">Complete payment to start the quiz</p>
+            <div class="mb-4">
+                <img src="https://example.com/phonepe-qr.png" alt="PhonePe QR Code" class="w-full max-w-xs mx-auto rounded-lg clay-card p-2">
+            </div>
+            <div class="mb-4">
+                <label class="block text-gray-700 mb-2">Enter UTR Number</label>
+                <input type="text" id="utrNumber" class="w-full p-3 rounded-lg clay-card" placeholder="Enter UTR Number">
+            </div>
+            <button onclick="verifyPayment()" class="clay-button w-full py-3 px-6 text-blue-600 font-semibold">
+                Verify Payment
+            </button>
+        </div>
+
+        <!-- Registration Section -->
+        <div id="registrationSection" class="clay-card p-6 mb-6 hidden">
+            <h2 class="text-2xl font-bold mb-4 text-gray-800">Personal Details</h2>
+            <div class="space-y-4">
+                <input type="text" id="name" class="w-full p-3 rounded-lg clay-card" placeholder="Full Name">
+                <input type="tel" id="mobile" class="w-full p-3 rounded-lg clay-card" placeholder="Mobile Number">
+                <input type="text" id="address" class="w-full p-3 rounded-lg clay-card" placeholder="Address">
+                
+                <div class="mb-4">
+                    <button onclick="startCamera()" class="clay-button w-full py-3 px-6 text-blue-600 font-semibold">
+                        <i class="bi bi-camera"></i> Take Selfie
+                    </button>
+                    <video id="cameraFeed" class="w-full mt-4 hidden" autoplay></video>
+                    <canvas id="photoCanvas" class="hidden"></canvas>
+                    <button onclick="capturePhoto()" id="captureBtn" class="clay-button w-full py-3 px-6 mt-2 text-blue-600 font-semibold hidden">
+                        Capture Photo
+                    </button>
+                </div>
+                
+                <button onclick="startQuiz()" class="clay-button w-full py-3 px-6 text-blue-600 font-semibold">
+                    Start Quiz
+                </button>
+            </div>
+        </div>
+
+        <!-- Quiz Section -->
+        <div id="quizSection" class="hidden">
+            <div class="clay-card p-6 mb-6">
+                <h2 class="text-2xl font-bold mb-4 text-gray-800">Quiz Question <span id="questionNumber">1</span>/50</h2>
+                <div id="questionText" class="mb-6 text-gray-700"></div>
+                <div id="options" class="space-y-3"></div>
+            </div>
+        </div>
+
+        <!-- Result Section -->
+        <div id="resultSection" class="clay-card p-6 hidden">
+            <h2 class="text-2xl font-bold mb-4 text-gray-800">Quiz Completed</h2>
+            <p class="text-gray-600">Thank you for completing the quiz. Results will be announced soon.</p>
+        </div>
+    </div>
+
+    <script>
+        // Sample questions (In production, these would come from Firebase)
+        const questions = [
+            {
+                question: "What is the capital of France?",
+                options: ["London", "Berlin", "Paris", "Madrid"],
+                correctAnswer: 2
+            },
+            // Add more questions...
+        ];
+
+        let currentQuestion = 0;
+        let userAnswers = [];
+        
+        // Firebase configuration (Replace with your config)
+        const firebaseConfig = {
+            // Your Firebase config here
+        };
+
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+
+        function verifyPayment() {
+            const utr = document.getElementById('utrNumber').value;
+            if (utr.length > 8) {
+                document.getElementById('paymentSection').classList.add('hidden');
+                document.getElementById('registrationSection').classList.remove('hidden');
+            } else {
+                alert('Please enter a valid UTR number');
+            }
+        }
+
+        async function startCamera() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                const video = document.getElementById('cameraFeed');
+                video.classList.remove('hidden');
+                document.getElementById('captureBtn').classList.remove('hidden');
+                video.srcObject = stream;
+            } catch (err) {
+                alert('Camera access denied');
+            }
+        }
+
+        function capturePhoto() {
+            const video = document.getElementById('cameraFeed');
+            const canvas = document.getElementById('photoCanvas');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            canvas.getContext('2d').drawImage(video, 0, 0);
+            
+            // Stop camera stream
+            video.srcObject.getTracks().forEach(track => track.stop());
+            video.classList.add('hidden');
+            document.getElementById('captureBtn').classList.add('hidden');
+        }
+
+        function startQuiz() {
+            const name = document.getElementById('name').value;
+            const mobile = document.getElementById('mobile').value;
+            const address = document.getElementById('address').value;
+
+            if (!name || !mobile || !address) {
+                alert('Please fill all details');
+                return;
+            }
+
+            document.getElementById('registrationSection').classList.add('hidden');
+            document.getElementById('quizSection').classList.remove('hidden');
+            displayQuestion();
+        }
+
+        function displayQuestion() {
+            if (currentQuestion >= questions.length) {
+                showResult();
+                return;
+            }
+
+            const question = questions[currentQuestion];
+            document.getElementById('questionNumber').textContent = currentQuestion + 1;
+            document.getElementById('questionText').textContent = question.question;
+
+            const optionsContainer = document.getElementById('options');
+            optionsContainer.innerHTML = '';
+
+            question.options.forEach((option, index) => {
+                const button = document.createElement('button');
+                button.className = 'clay-button w-full py-3 px-6 text-gray-700 option-button text-left';
+                button.textContent = option;
+                button.onclick = () => selectAnswer(index);
+                optionsContainer.appendChild(button);
+            });
+        }
+
+        function selectAnswer(answerIndex) {
+            userAnswers.push(answerIndex);
+            currentQuestion++;
+            if (currentQuestion < questions.length) {
+                displayQuestion();
+            } else {
+                showResult();
+            }
+        }
+
+        function showResult() {
+            document.getElementById('quizSection').classList.add('hidden');
+            document.getElementById('resultSection').classList.remove('hidden');
+            
+            // Save results to Firebase
+            saveResults();
+        }
+
+        function saveResults() {
+            // Implementation for saving results to Firebase
+            // This would include the user's details, answers, and timestamp
+        }
+
+        // Prevent going back after starting quiz
+        window.history.pushState(null, null, window.location.href);
+        window.onpopstate = function() {
+            window.history.pushState(null, null, window.location.href);
+        };
+    </script>
+<script>document.body.addEventListener('wheel', e => { if (!e.ctrlKey) return; e.preventDefault(); return }, { passive: false })</script>
+	</body>
+</html>
